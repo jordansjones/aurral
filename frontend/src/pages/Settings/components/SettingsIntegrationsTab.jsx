@@ -31,7 +31,7 @@ export function SettingsIntegrationsTab({
   showInfo,
 }) {
   const [lidarrEditing, setLidarrEditing] = useState(false);
-  const [navidromeEditing, setNavidromeEditing] = useState(false);
+  const [mediaServerEditing, setMediaServerEditing] = useState(false);
   const [lidarrTestLatencyMs, setLidarrTestLatencyMs] = useState(null);
   const safeLidarrProfiles = Array.isArray(lidarrProfiles)
     ? lidarrProfiles
@@ -39,6 +39,30 @@ export function SettingsIntegrationsTab({
   const safeLidarrMetadataProfiles = Array.isArray(lidarrMetadataProfiles)
     ? lidarrMetadataProfiles
     : [];
+  const mediaServerConfig = settings.integrations?.mediaServer || {};
+  const legacyNavidrome = settings.integrations?.navidrome || {};
+  const hasMediaServerConfig =
+    mediaServerConfig.url ||
+    mediaServerConfig.username ||
+    mediaServerConfig.password ||
+    mediaServerConfig.token ||
+    mediaServerConfig.provider;
+  const mediaServer = {
+    provider: mediaServerConfig.provider || "navidrome",
+    url: hasMediaServerConfig ? mediaServerConfig.url : legacyNavidrome.url || "",
+    username: hasMediaServerConfig
+      ? mediaServerConfig.username
+      : legacyNavidrome.username || "",
+    password: hasMediaServerConfig
+      ? mediaServerConfig.password
+      : legacyNavidrome.password || "",
+    token: mediaServerConfig.token || "",
+  };
+  const mediaProvider = String(mediaServer.provider || "navidrome");
+  const usesPlex = mediaProvider.toLowerCase() === "plex";
+  const mediaServerConfigured = usesPlex
+    ? !!(mediaServer.url && mediaServer.token)
+    : !!(mediaServer.url && mediaServer.username && mediaServer.password);
 
   const handleTestLidarr = async () => {
     const url = settings.integrations?.lidarr?.url;
@@ -551,10 +575,10 @@ export function SettingsIntegrationsTab({
               className="text-lg font-medium flex items-center"
               style={{ color: "#fff" }}
             >
-              Subsonic / Navidrome
+              Flow Library Server
             </h3>
             <div className="flex items-center gap-2">
-              {settings.integrations?.navidrome?.url && (
+              {mediaServerConfigured && (
                 <span className="flex items-center text-sm text-green-400">
                   <CheckCircle className="w-4 h-4 mr-1" />
                   Configured
@@ -563,13 +587,13 @@ export function SettingsIntegrationsTab({
               <button
                 type="button"
                 className={`btn ${
-                  navidromeEditing ? "btn-primary" : "btn-secondary"
+                  mediaServerEditing ? "btn-primary" : "btn-secondary"
                 } px-2 py-1`}
-                onClick={() => setNavidromeEditing((value) => !value)}
+                onClick={() => setMediaServerEditing((value) => !value)}
                 aria-label={
-                  navidromeEditing
-                    ? "Lock Subsonic / Navidrome settings"
-                    : "Edit Subsonic / Navidrome settings"
+                  mediaServerEditing
+                    ? "Lock flow library server settings"
+                    : "Edit flow library server settings"
                 }
               >
                 <Pencil className="w-4 h-4" />
@@ -577,96 +601,150 @@ export function SettingsIntegrationsTab({
             </div>
           </div>
           <fieldset
-            disabled={!navidromeEditing}
-            className={`${navidromeEditing ? "" : "opacity-60"}`}
+            disabled={!mediaServerEditing}
+            className={`${mediaServerEditing ? "" : "opacity-60"}`}
           >
             <div>
-            <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: "#fff" }}
-            >
-              Server URL
-            </label>
-            <input
-              type="url"
-              className="input"
-              placeholder="https://music.example.com"
-              autoComplete="off"
-              value={settings.integrations?.navidrome?.url || ""}
-              onChange={(e) =>
-                updateSettings({
-                  ...settings,
-                  integrations: {
-                    ...settings.integrations,
-                    navidrome: {
-                      ...(settings.integrations?.navidrome || {}),
-                      url: e.target.value,
-                    },
-                  },
-                })
-              }
-            />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
               <label
                 className="block text-sm font-medium mb-1"
                 style={{ color: "#fff" }}
               >
-                Username
+                Provider
               </label>
-              <input
-                type="text"
+              <select
                 className="input"
-                autoComplete="off"
-                value={settings.integrations?.navidrome?.username || ""}
+                value={mediaProvider}
                 onChange={(e) =>
                   updateSettings({
                     ...settings,
                     integrations: {
                       ...settings.integrations,
-                      navidrome: {
-                        ...(settings.integrations?.navidrome || {}),
-                        username: e.target.value,
+                      mediaServer: {
+                        ...mediaServer,
+                        provider: e.target.value,
                       },
                     },
                   })
                 }
-              />
+              >
+                <option value="navidrome">Navidrome</option>
+                <option value="jellyfin">Jellyfin</option>
+                <option value="plex">Plex</option>
+              </select>
             </div>
             <div>
               <label
                 className="block text-sm font-medium mb-1"
                 style={{ color: "#fff" }}
               >
-                Password
+                Server URL
               </label>
               <input
-                type="password"
+                type="url"
                 className="input"
+                placeholder="https://music.example.com"
                 autoComplete="off"
-                value={settings.integrations?.navidrome?.password || ""}
+                value={mediaServer.url || ""}
                 onChange={(e) =>
                   updateSettings({
                     ...settings,
                     integrations: {
                       ...settings.integrations,
-                      navidrome: {
-                        ...(settings.integrations?.navidrome || {}),
-                        password: e.target.value,
+                      mediaServer: {
+                        ...mediaServer,
+                        url: e.target.value,
                       },
                     },
                   })
                 }
               />
             </div>
-            </div>
+            {usesPlex ? (
+              <div>
+                <label
+                  className="block text-sm font-medium mb-1"
+                  style={{ color: "#fff" }}
+                >
+                  Token
+                </label>
+                <input
+                  type="password"
+                  className="input"
+                  autoComplete="off"
+                  value={mediaServer.token || ""}
+                  onChange={(e) =>
+                    updateSettings({
+                      ...settings,
+                      integrations: {
+                        ...settings.integrations,
+                        mediaServer: {
+                          ...mediaServer,
+                          token: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-1"
+                    style={{ color: "#fff" }}
+                  >
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    className="input"
+                    autoComplete="off"
+                    value={mediaServer.username || ""}
+                    onChange={(e) =>
+                      updateSettings({
+                        ...settings,
+                        integrations: {
+                          ...settings.integrations,
+                          mediaServer: {
+                            ...mediaServer,
+                            username: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label
+                    className="block text-sm font-medium mb-1"
+                    style={{ color: "#fff" }}
+                  >
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    className="input"
+                    autoComplete="off"
+                    value={mediaServer.password || ""}
+                    onChange={(e) =>
+                      updateSettings({
+                        ...settings,
+                        integrations: {
+                          ...settings.integrations,
+                          mediaServer: {
+                            ...mediaServer,
+                            password: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+            )}
             <p className="mt-3 text-xs" style={{ color: "#8a8a8e" }}>
-              When using Weekly Flow: set Navidrome&apos;s{" "}
-              <code>Scanner.PurgeMissing</code> to <code>always</code> or{" "}
-              <code>full</code> (e.g.{" "}
-              <code>ND_SCANNER_PURGEMISSING=always</code>) so turning off a flow
-              removes those tracks from the library.
+              For Weekly Flow, set your server to purge missing tracks so turning
+              off a flow removes those tracks from the library.
             </p>
           </fieldset>
         </div>

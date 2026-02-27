@@ -3,7 +3,7 @@ import { ChevronRight, ChevronLeft, CheckCircle2 } from "lucide-react";
 import {
   completeOnboarding,
   testLidarrOnboarding,
-  testNavidromeOnboarding,
+  testMediaServerOnboarding,
 } from "../utils/api";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -21,7 +21,7 @@ const STEPS = [
   "admin",
   "lidarr",
   "musicbrainz",
-  "navidrome",
+  "mediaServer",
   "lastfm",
   "done",
 ];
@@ -34,23 +34,27 @@ function Onboarding() {
   const [lidarrUrl, setLidarrUrl] = useState("");
   const [lidarrApiKey, setLidarrApiKey] = useState("");
   const [musicbrainzEmail, setMusicbrainzEmail] = useState("");
-  const [navidromeUrl, setNavidromeUrl] = useState("");
-  const [navidromeUsername, setNavidromeUsername] = useState("");
-  const [navidromePassword, setNavidromePassword] = useState("");
+  const [mediaProvider, setMediaProvider] = useState("navidrome");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaUsername, setMediaUsername] = useState("");
+  const [mediaPassword, setMediaPassword] = useState("");
+  const [mediaToken, setMediaToken] = useState("");
   const [lastfmUsername, setLastfmUsername] = useState("");
   const [lastfmApiKey, setLastfmApiKey] = useState("");
   const [lidarrTestSuccess, setLidarrTestSuccess] = useState(false);
   const [testingLidarr, setTestingLidarr] = useState(false);
-  const [navidromeTestSuccess, setNavidromeTestSuccess] = useState(false);
-  const [testingNavidrome, setTestingNavidrome] = useState(false);
+  const [mediaServerTestSuccess, setMediaServerTestSuccess] = useState(false);
+  const [testingMediaServer, setTestingMediaServer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const { refreshAuth } = useAuth();
   const { showSuccess } = useToast();
 
   const currentStep = STEPS[step];
-  const hasNavidrome =
-    navidromeUrl.trim() && navidromeUsername.trim() && navidromePassword;
+  const isPlex = mediaProvider === "plex";
+  const hasMediaServer = isPlex
+    ? mediaUrl.trim() && mediaToken.trim()
+    : mediaUrl.trim() && mediaUsername.trim() && mediaPassword;
   const hasLastfm =
     !!lastfmUsername.trim() && !!lastfmApiKey.trim();
   const adminComplete =
@@ -61,7 +65,8 @@ function Onboarding() {
     (currentStep === "admin" && adminComplete) ||
     (currentStep === "lidarr" && lidarrTestSuccess) ||
     (currentStep === "musicbrainz" && musicbrainzEmail.trim()) ||
-    (currentStep === "navidrome" && (!hasNavidrome || navidromeTestSuccess)) ||
+    (currentStep === "mediaServer" &&
+      (!hasMediaServer || mediaServerTestSuccess)) ||
     currentStep === "lastfm";
   const isPrimaryDisabled =
     currentStep === "done"
@@ -69,8 +74,8 @@ function Onboarding() {
       : currentStep === "lidarr"
         ? !lidarrTestSuccess &&
           (!lidarrUrl.trim() || !lidarrApiKey.trim() || testingLidarr)
-        : currentStep === "navidrome"
-          ? testingNavidrome
+        : currentStep === "mediaServer"
+          ? testingMediaServer
           : currentStep === "admin"
             ? !adminComplete
             : currentStep !== "welcome" && currentStep !== "lastfm" && !canNext;
@@ -89,34 +94,36 @@ function Onboarding() {
     await handleTestLidarr();
   };
 
-  const handleNavidromeStepAction = async () => {
-    if (!hasNavidrome) {
+  const handleMediaServerStepAction = async () => {
+    if (!hasMediaServer) {
       handleNext();
       return;
     }
-    if (navidromeTestSuccess) {
+    if (mediaServerTestSuccess) {
       handleNext();
       return;
     }
-    await handleTestNavidrome();
+    await handleTestMediaServer();
   };
 
-  const handleTestNavidrome = async () => {
-    if (!hasNavidrome) return;
-    setTestingNavidrome(true);
+  const handleTestMediaServer = async () => {
+    if (!hasMediaServer) return;
+    setTestingMediaServer(true);
     setError("");
     try {
-      await testNavidromeOnboarding(
-        navidromeUrl.trim(),
-        navidromeUsername.trim(),
-        navidromePassword,
-      );
-      setNavidromeTestSuccess(true);
-      showSuccess("Navidrome connection successful");
+      await testMediaServerOnboarding({
+        provider: mediaProvider,
+        url: mediaUrl.trim(),
+        username: mediaUsername.trim(),
+        password: mediaPassword,
+        token: mediaToken.trim(),
+      });
+      setMediaServerTestSuccess(true);
+      showSuccess("Media server connection successful");
     } catch (e) {
       setError(e.response?.data?.message || e.message || "Connection failed");
     } finally {
-      setTestingNavidrome(false);
+      setTestingMediaServer(false);
     }
   };
 
@@ -160,12 +167,14 @@ function Onboarding() {
         musicbrainz: musicbrainzEmail.trim()
           ? { email: musicbrainzEmail.trim() }
           : undefined,
-        navidrome:
-          navidromeUrl.trim() && navidromeUsername.trim() && navidromePassword
+        mediaServer:
+          hasMediaServer
             ? {
-                url: navidromeUrl.trim().replace(/\/+$/, ""),
-                username: navidromeUsername.trim(),
-                password: navidromePassword,
+                provider: mediaProvider,
+                url: mediaUrl.trim().replace(/\/+$/, ""),
+                username: isPlex ? "" : mediaUsername.trim(),
+                password: isPlex ? "" : mediaPassword,
+                token: isPlex ? mediaToken.trim() : "",
               }
             : undefined,
         lastfm:
@@ -337,54 +346,84 @@ function Onboarding() {
           </>
         )}
 
-        {currentStep === "navidrome" && (
+        {currentStep === "mediaServer" && (
           <>
             <div className="flex items-center gap-2 mb-4">
               <h2 className="text-xl font-bold" style={{ color: "#fff" }}>
-                Navidrome (optional)
+                Flow Library Server (optional)
               </h2>
             </div>
             <p className="text-sm mb-4" style={{ color: "#c1c1c3" }}>
-              Recommended for streaming and playlists. Leave blank to skip and
-              add later in settings.
+              Connect Navidrome, Jellyfin, or Plex to expose Weekly Flow
+              playlists. Leave blank to skip and add later in settings.
             </p>
             <div className="space-y-3">
+              <select
+                className={inputClass}
+                style={inputStyle}
+                value={mediaProvider}
+                onChange={(e) => {
+                  setMediaProvider(e.target.value);
+                  setMediaServerTestSuccess(false);
+                }}
+              >
+                <option value="navidrome">Navidrome</option>
+                <option value="jellyfin">Jellyfin</option>
+                <option value="plex">Plex</option>
+              </select>
               <input
                 type="url"
                 autoComplete="off"
                 className={inputClass}
                 style={inputStyle}
-                placeholder="Navidrome URL"
-                value={navidromeUrl}
+                placeholder="Server URL"
+                value={mediaUrl}
                 onChange={(e) => {
-                  setNavidromeUrl(e.target.value);
-                  setNavidromeTestSuccess(false);
+                  setMediaUrl(e.target.value);
+                  setMediaServerTestSuccess(false);
                 }}
               />
-              <input
-                type="text"
-                autoComplete="off"
-                className={inputClass}
-                style={inputStyle}
-                placeholder="Username"
-                value={navidromeUsername}
-                onChange={(e) => {
-                  setNavidromeUsername(e.target.value);
-                  setNavidromeTestSuccess(false);
-                }}
-              />
-              <input
-                type="password"
-                autoComplete="off"
-                className={inputClass}
-                style={inputStyle}
-                placeholder="Password"
-                value={navidromePassword}
-                onChange={(e) => {
-                  setNavidromePassword(e.target.value);
-                  setNavidromeTestSuccess(false);
-                }}
-              />
+              {isPlex ? (
+                <input
+                  type="password"
+                  autoComplete="off"
+                  className={inputClass}
+                  style={inputStyle}
+                  placeholder="Plex token"
+                  value={mediaToken}
+                  onChange={(e) => {
+                    setMediaToken(e.target.value);
+                    setMediaServerTestSuccess(false);
+                  }}
+                />
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    className={inputClass}
+                    style={inputStyle}
+                    placeholder="Username"
+                    value={mediaUsername}
+                    onChange={(e) => {
+                      setMediaUsername(e.target.value);
+                      setMediaServerTestSuccess(false);
+                    }}
+                  />
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    className={inputClass}
+                    style={inputStyle}
+                    placeholder="Password"
+                    value={mediaPassword}
+                    onChange={(e) => {
+                      setMediaPassword(e.target.value);
+                      setMediaServerTestSuccess(false);
+                    }}
+                  />
+                </>
+              )}
             </div>
           </>
         )}
@@ -467,8 +506,8 @@ function Onboarding() {
                 ? handleFinish
                 : currentStep === "lidarr"
                   ? handleLidarrStepAction
-                  : currentStep === "navidrome"
-                    ? handleNavidromeStepAction
+                  : currentStep === "mediaServer"
+                    ? handleMediaServerStepAction
                     : handleNext
             }
             disabled={isPrimaryDisabled}
@@ -495,15 +534,15 @@ function Onboarding() {
               ) : (
                 "Test"
               )
-            ) : currentStep === "navidrome" ? (
-              !hasNavidrome ? (
+            ) : currentStep === "mediaServer" ? (
+              !hasMediaServer ? (
                 "Skip"
-              ) : navidromeTestSuccess ? (
+              ) : mediaServerTestSuccess ? (
                 <>
                   Next
                   <ChevronRight className="w-4 h-4" />
                 </>
-              ) : testingNavidrome ? (
+              ) : testingMediaServer ? (
                 "Testing…"
               ) : (
                 "Test"

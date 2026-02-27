@@ -83,6 +83,23 @@ export const testNavidromeOnboarding = async (url, username, password) => {
   return response.data;
 };
 
+export const testMediaServerOnboarding = async ({
+  provider,
+  url,
+  username,
+  password,
+  token,
+}) => {
+  const response = await api.post("/onboarding/media-server/test", {
+    provider,
+    url: url?.replace(/\/+$/, ""),
+    username,
+    password,
+    token,
+  });
+  return response.data;
+};
+
 export const getAuthConfig = async () => {
   const response = await api.get("/auth/config");
   return response.data;

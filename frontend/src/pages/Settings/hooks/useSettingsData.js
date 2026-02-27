@@ -18,6 +18,13 @@ const defaultSettings = {
   releaseTypes: allReleaseTypes,
   integrations: {
     navidrome: { url: "", username: "", password: "" },
+    mediaServer: {
+      provider: "navidrome",
+      url: "",
+      username: "",
+      password: "",
+      token: "",
+    },
     lastfm: { username: "" },
     slskd: { url: "", apiKey: "" },
     lidarr: {

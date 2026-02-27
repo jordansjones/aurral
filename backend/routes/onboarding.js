@@ -1,5 +1,6 @@
 import express from "express";
 import bcrypt from "bcrypt";
+import axios from "axios";
 import { dbOps, userOps } from "../config/db-helpers.js";
 import { defaultData } from "../config/constants.js";
 
@@ -69,9 +70,81 @@ router.post("/navidrome/test", async (req, res) => {
   }
 });
 
+router.post("/media-server/test", async (req, res) => {
+  try {
+    const provider = String(req.body?.provider || "navidrome").toLowerCase();
+    const url = (req.body?.url || "").trim().replace(/\/+$/, "");
+    const username = (req.body?.username || "").trim();
+    const password = req.body?.password ?? "";
+    const token = (req.body?.token || "").trim();
+    if (!url) {
+      return res.status(400).json({ error: "URL is required" });
+    }
+    if (provider === "plex") {
+      if (!token) {
+        return res.status(400).json({ error: "Token is required" });
+      }
+      await axios.get(`${url}/`, {
+        params: { "X-Plex-Token": token },
+        timeout: 20000,
+      });
+      return res.json({ success: true, message: "Connection successful" });
+    }
+    if (provider === "jellyfin") {
+      if (!username || !password) {
+        return res.status(400).json({
+          error: "Username and password are required",
+        });
+      }
+      const headers = {
+        "Content-Type": "application/json",
+        "X-Emby-Authorization":
+          'MediaBrowser Client="Aurral", Device="Aurral", DeviceId="aurral", Version="1.0.0"',
+      };
+      const response = await axios.post(
+        `${url}/Users/AuthenticateByName`,
+        {
+          Username: username,
+          Pw: password,
+        },
+        { headers, timeout: 20000 },
+      );
+      if (!response.data?.AccessToken) {
+        return res.status(400).json({
+          error: "Connection failed",
+          message: "Authentication failed",
+        });
+      }
+      return res.json({ success: true, message: "Connection successful" });
+    }
+    if (!username || !password) {
+      return res.status(400).json({
+        error: "Username and password are required",
+      });
+    }
+    const { NavidromeClient } = await import("../services/navidrome.js");
+    const client = new NavidromeClient(url, username, password);
+    await client.ping();
+    return res.json({ success: true, message: "Connection successful" });
+  } catch (error) {
+    return res.status(400).json({
+      error: "Connection failed",
+      message: error.message,
+    });
+  }
+});
+
 router.post("/complete", async (req, res) => {
   try {
-    const { authUser, authPassword, lidarr, musicbrainz, navidrome, lastfm } =
+    const {
+      authUser,
+      authPassword,
+      lidarr,
+      musicbrainz,
+      navidrome,
+      mediaServer,
+      lastfm,
+    } =
       req.body;
 
     const current = dbOps.getSettings();
@@ -103,6 +176,15 @@ router.post("/complete", async (req, res) => {
         navidrome && (navidrome.url || navidrome.username)
           ? { ...(current.integrations?.navidrome || {}), ...navidrome }
           : current.integrations?.navidrome,
+      mediaServer:
+        mediaServer &&
+        (mediaServer.url ||
+          mediaServer.username ||
+          mediaServer.password ||
+          mediaServer.token ||
+          mediaServer.provider)
+          ? { ...(current.integrations?.mediaServer || {}), ...mediaServer }
+          : current.integrations?.mediaServer,
       lastfm:
         lastfm && (lastfm.apiKey || lastfm.username)
           ? {

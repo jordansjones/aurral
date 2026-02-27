@@ -2,6 +2,21 @@ import { allReleaseTypes } from "./constants";
 
 export const normalizeSettings = (savedSettings) => {
   const lidarr = savedSettings.integrations?.lidarr || {};
+  const mediaServer = savedSettings.integrations?.mediaServer || {};
+  const navidrome = savedSettings.integrations?.navidrome || {};
+  const hasMediaServerConfig =
+    mediaServer.url ||
+    mediaServer.username ||
+    mediaServer.password ||
+    mediaServer.token ||
+    mediaServer.provider;
+  const effectiveMediaServer = {
+    provider: mediaServer.provider || "navidrome",
+    url: hasMediaServerConfig ? mediaServer.url : navidrome.url,
+    username: hasMediaServerConfig ? mediaServer.username : navidrome.username,
+    password: hasMediaServerConfig ? mediaServer.password : navidrome.password,
+    token: mediaServer.token || "",
+  };
   return {
     ...savedSettings,
     releaseTypes: savedSettings.releaseTypes || allReleaseTypes,
@@ -27,6 +42,13 @@ export const normalizeSettings = (savedSettings) => {
         username: "",
         password: "",
         ...(savedSettings.integrations?.navidrome || {}),
+      },
+      mediaServer: {
+        url: "",
+        username: "",
+        password: "",
+        token: "",
+        ...(effectiveMediaServer || {}),
       },
       lastfm: {
         username: "",

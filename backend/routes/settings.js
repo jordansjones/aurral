@@ -43,6 +43,12 @@ router.post("/", async (req, res) => {
               ...integrations.navidrome,
             }
           : mergedIntegrations.navidrome,
+        mediaServer: integrations.mediaServer
+          ? {
+              ...(mergedIntegrations.mediaServer || {}),
+              ...integrations.mediaServer,
+            }
+          : mergedIntegrations.mediaServer,
         slskd: integrations.slskd
           ? {
               ...(mergedIntegrations.slskd || {}),

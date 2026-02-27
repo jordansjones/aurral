@@ -163,6 +163,13 @@ export const defaultData = {
     ],
     integrations: {
       navidrome: { url: "", username: "", password: "" },
+      mediaServer: {
+        provider: "navidrome",
+        url: "",
+        username: "",
+        password: "",
+        token: "",
+      },
       lastfm: { username: "", discoveryPeriod: "1month" },
       slskd: { url: "", apiKey: "" },
       soulseek: { username: "", password: "" },
